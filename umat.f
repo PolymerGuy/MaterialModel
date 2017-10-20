@@ -18,7 +18,82 @@ C ----------------------------------------------------------------------
       end
 
 
+C ----------------------------------------------------------------------    
+C  matinv: Invert matrix
+C  Input: n1    : Lower dimension of square matrix
+C         n2    : Upper dimension of square matrix
+C          A    : Square matrix of dimension n1:n2 x n1:n2 to be inverted
+C  Output: Ainv : Inverted matrix
+C
+C Taken from http://wp.me/p61TQ-zb
+C Based on a lecture by Prof. McFarland
+C http://math.uww.edu/~mcfarlat/inverse.htm
+C ----------------------------------------------------------------------
+      subroutine matinv(n1,n2,A,AINV)
+      implicit none
+      integer i,j,k,n1,n2
+      real*8 A(n1:n2,n1:n2),AINV(n1:n2,n1:n2),B(n1:n2,n1:2*n2-n1+1)
+     1,pivot,xnum
 
+! Initialization
+      do i=n1,n2
+      do j=n1,n2
+      AINV(i,j)=0.0D0
+      end do
+      end do
+
+! Make augmented matrix
+      do i=n1,n2
+          do j=n1,n2
+              B(i,j)=0.0D0
+              B(i,j+n2-n1+1)=0.0D0
+
+              B(i,j)=A(i,j)
+                  if(i.EQ.j) then
+                      B(i,j+n2-n1+1)=1.0D0
+                  end if
+        end do
+      end do
+
+      do i=n1,n2
+
+! Choose the leftmost non-zero element as pivot
+        do j=n1,n2
+            if(dabs(B(i,j)).gt.0)then
+                pivot=B(i,j)
+                exit
+            end if
+        end do
+
+! Step 1: Change the chosen pivot into "1" by dividing
+! the pivot's row by the pivot number
+          do j=n1,2*n2-n1+1
+              B(i,j)=B(i,j)/pivot
+          end do
+          pivot=B(i,i) !Update pivot value
+
+! Step 2: Change the remainder of the pivot's column into 0's
+! by adding to each row a suitable multiple of the pivot row
+        do k=n1,n2 !row
+              if(k.ne.i) then
+                  xnum=B(k,i)/pivot !Same column with current pivot
+                  do j=n1,2*n2-n1+1 !column
+                      B(k,j)=B(k,j)-xnum*B(i,j)
+                  end do
+              end if
+        end do
+
+      end do
+
+! Prepare the final inverted matrix
+      do i=n1,n2
+          do j=n1,n2
+              AINV(i,j)=B(i,j+n2-n1+1)
+          end do
+      end do
+
+      return
+      end
 
 
 
@@ -62,6 +137,9 @@ C
       DIMENSION STRESS(NDIR+NSHR) ! Stress tensor inside UMAT
       DIMENSION DFDS(NDIR+NSHR)   ! Derivative of the yield function
       DIMENSION STRESSK(NDIR+NSHR)
+
+      DIMENSION EP(NDIR+NSHR)
+      DIMENSION DEP(NDIR+NSHR)
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 !     Internal UMAT variables could be declared as follow
 !     but it is not required due to the VABA_PARAM.INC file
@@ -98,15 +176,21 @@ C
       REAL S
       REAL SV
       REAL DSVDP
+      
+      REAL EP
+      REAL DEP
 
       PARAMETER(one=1.d0,zero=0.d0)
 
 !-----------------------------------------------------------------------
 !     Coefficients for viscous stress
 !-----------------------------------------------------------------------
-      S = 1e6
+      S = 5e6
       P0DOT = 0.0001
 
+
+      EP = 0.0
+      DEP = 0.0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -172,7 +256,7 @@ C
 !-----------------------------------------------------------------------
 !           Initialize the plastic multiplier
 !-----------------------------------------------------------------------
-            DLAMBDA  = 0.0
+            DLAMBDA  = 0.00001
 
             SV = S*log(one+DLAMBDA/(DT*P0DOT))
             DSVDP = S/(DT*P0DOT+DLAMBDA)
@@ -213,11 +297,66 @@ c
 !-----------------------------------------------------------------------
 !                 Compute increment in plastic multiplier
 !-----------------------------------------------------------------------
-!                  DDLAMBDA = F/(3.0*C44+ET)
-!-----------------------------------------------------------------------
-!                 Update plastic multiplier
-!-----------------------------------------------------------------------
                   DDLAMBDA  = -F/DFDP
+!-----------------------------------------------------------------------
+!                 Update equivalent plastic strain
+!-----------------------------------------------------------------------
+                  DLAMBDA = DLAMBDA+DDLAMBDA
+                  P      = P0 +DLAMBDA
+
+!                  DEP(1) = -DDLAMBDA*DFDS(1)
+!                  DEP(2) = -DDLAMBDA*DFDS(2)
+!                  DEP(3) = -DDLAMBDA*DFDS(3)
+!                  DEP(4) = -DDLAMBDA*DFDS(4)
+!                  DEP(5) = -DDLAMBDA*DFDS(5)
+!                  DEP(6) = -DDLAMBDA*DFDS(6)
+!
+!                  print *,DFDS(1)
+!
+!                  EP(1) = EP(1) + DEP(1)
+!                  EP(2) = EP(2) + DEP(2)
+!                  EP(3) = EP(3) + DEP(3)
+!                  EP(4) = EP(4) + DEP(4)
+!                  EP(5) = EP(5) + DEP(5)
+!                  EP(6) = EP(6) + DEP(6)
+!
+!
+!            STRESS(1) = STRESSOLD(i,1)+C11*(STRAININC(i,1)-EP(1))
+!     .                                +C12*(STRAININC(i,2)-EP(2))
+!     .                                +C12*(STRAININC(i,3)-EP(3))
+!            STRESS(2) = STRESSOLD(i,2)+C12*(STRAININC(i,1)-EP(1))
+!     .                                +C11*(STRAININC(i,2)-EP(2))
+!     .                                +C12*(STRAININC(i,3)-EP(3))
+!            STRESS(3) = STRESSOLD(i,3)+C12*(STRAININC(i,1)-EP(1))
+!     .                                +C12*(STRAININC(i,2)-EP(2))
+!     .                                +C11*(STRAININC(i,3)-EP(3))
+!            STRESS(4) = STRESSOLD(i,4)+C44*(STRAININC(i,4)-EP(4))*2.0
+!            STRESS(5) = STRESSOLD(i,5)+C44*(STRAININC(i,5)-EP(5))*2.0
+!            STRESS(6) = STRESSOLD(i,6)+C44*(STRAININC(i,6)-EP(6))*2.0
+
+
+
+                                    STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
+     .                             +C12*DFDS(2)
+     .                        +C12*DFDS(3))
+                  STRESSK(2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
+     .                        +C11*DFDS(2)
+     .                        +C12*DFDS(3))
+                  STRESSK(3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
+     .                        +C12*DFDS(2)
+     .                        +C11*DFDS(3))
+                  STRESSK(4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
+                  STRESSK(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
+                  STRESSK(6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
+                  
+                  SIGMAY   = SIGMA0+ET*P
+                  PHI = eq(STRESSK)
+
+!                  F        = PHI-SIGMAY - 3*C44*DLAMBDA - SV
+                  F        = PHI-SIGMAY - SV
+
+                  DFDP     = -ET -3.0*C44 - DSVDP
+
 !-----------------------------------------------------------------------
 !                 Update viscous stress
 !-----------------------------------------------------------------------
@@ -228,90 +367,39 @@ c
                         SV = zero
                         DSVDP = zero
                   ENDIF
-                  PRINT *,SV
-!-----------------------------------------------------------------------
-!                 Update equivalent plastic strain
-!-----------------------------------------------------------------------
-                  DLAMBDA = DLAMBDA+DDLAMBDA
 
-                  P      = P0 +DLAMBDA
-                  !print *,P
-                  print *,DLAMBDA
 !-----------------------------------------------------------------------
-!           Update yield stress
+!                 Update yield stress
 !-----------------------------------------------------------------------
-                  SIGMAY   = SIGMA0+ET*P
-                  print *,SIGMAY
-
+                  
 !-----------------------------------------------------------------------
 !           Compute yield function
 !-----------------------------------------------------------------------
-                  !PHI = eq(STRESSK) 
 
 
 
 
-
-                  STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
-     .                                                +C12*DFDS(2)
-     .                                                +C12*DFDS(3))
-                  STRESSK(2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
-     .                                                +C11*DFDS(2)
-     .                                                +C12*DFDS(3))
-                  STRESSK(3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
-     .                                                +C12*DFDS(2)
-     .                                                +C11*DFDS(3))
-                  STRESSK(4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
-                  STRESSK(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
-                     
-
-                  !PHI = eq(STRESSK)
-
-                  F        = PHI-SIGMAY - 3*C44*DLAMBDA - SV
-                  DFDP     = -ET -3.0*C44 - DSVDP
+!                  PHI = eq(STRESSK)
 
 
-
-
-
-
-
-
-!
-!!-----------------------------------------------------------------------
-!!           Compute the derivative of the yield function
-!!-----------------------------------------------------------------------
+                  IF(PHI.eq.0)THEN
+                     DENOM = 1.0
+                  ELSE
+                     DENOM = PHI
+                  ENDIF        
       
-c
-
-!
-!            IF(PHI.eq.0)THEN
-!               DENOM = one
-!            ELSE
-!               DENOM = PHI
-!            ENDIF  
-!            DFDS(1) = (STRESS(1)-0.5*(STRESS(2)+STRESS(3)))/DENOM
-!            DFDS(2) = (STRESS(2)-0.5*(STRESS(3)+STRESS(1)))/DENOM
-!            DFDS(3) = (STRESS(3)-0.5*(STRESS(1)+STRESS(2)))/DENOM
-!            DFDS(4) = 3.0*STRESS(4)/DENOM
-!            DFDS(5) = 3.0*STRESS(5)/DENOM
-!            DFDS(6) = 3.0*STRESS(6)/DENOM
-!
-!!
-!
-!
-!
-!
-
-
-
-
-
-
-
-
-
-
+!                  DFDS(1) = (STRESS(1)-0.5*(STRESS(2)+STRESS(3)))/DENOM
+!                  DFDS(2) = (STRESS(2)-0.5*(STRESS(3)+STRESS(1)))/DENOM
+!                  DFDS(3) = (STRESS(3)-0.5*(STRESS(1)+STRESS(2)))/DENOM
+!                  DFDS(4) = 3.0*STRESS(4)/DENOM
+!                  DFDS(5) = 3.0*STRESS(5)/DENOM
+!                  DFDS(6) = 3.0*STRESS(6)/DENOM
+                 DFDS(1) = (STRESSK(1)-0.5*(STRESSK(2)+STRESSK(3)))/DENOM
+                 DFDS(2) = (STRESSK(2)-0.5*(STRESSK(3)+STRESSK(1)))/DENOM
+                 DFDS(3) = (STRESSK(3)-0.5*(STRESSK(1)+STRESSK(2)))/DENOM
+                 DFDS(4) = 3.0*STRESSK(4)/DENOM
+                 DFDS(5) = 3.0*STRESSK(5)/DENOM
+                 DFDS(6) = 3.0*STRESSK(6)/DENOM
 
 
 
@@ -319,52 +407,28 @@ c
 !                 Compute convergence criterion
 !-----------------------------------------------------------------------
                   RESNOR = ABS(F/SIGMAY)
-                  PRINT *,ITER
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                  
 
 !-----------------------------------------------------------------------
 !                 Check for convergence
 !-----------------------------------------------------------------------
                   IF(RESNOR.LE.TOL)THEN ! RMAP has converged
-            STRESS(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
-     .                 +C12*DFDS(2)
-     .                 +C12*DFDS(3))
-            STRESS(2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
-     .                 +C11*DFDS(2)
-     .                 +C12*DFDS(3))
-            STRESS(3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
-     .                 +C12*DFDS(2)
-     .                 +C11*DFDS(3))
-            STRESS(4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
-            STRESS(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
-            STRESS(6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
+                  PRINT *,ITER
 !-----------------------------------------------------------------------
 !                    Update the stress tensor
 !-----------------------------------------------------------------------
-                     STRESSNEW(i,1)= STRESS(1)
-
-                     STRESSNEW(i,2)= STRESS(2)
-
-                     STRESSNEW(i,3)= STRESS(3)
-
-                     STRESSNEW(i,4)= STRESS(4)
-                     STRESSNEW(i,5)= STRESS(5)
-                     STRESSNEW(i,6)= STRESS(6) 
+                        STRESSNEW(i,1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
+     .                             +C12*DFDS(2)
+     .                        +C12*DFDS(3))
+                        STRESSNEW(i,2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
+     .                        +C11*DFDS(2)
+     .                        +C12*DFDS(3))
+                        STRESSNEW(i,3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
+     .                        +C12*DFDS(2)
+     .                        +C11*DFDS(3))
+                        STRESSNEW(i,4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
+                        STRESSNEW(i,5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
+                        STRESSNEW(i,6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
 !-----------------------------------------------------------------------
 !                    Update the history variables
 !-----------------------------------------------------------------------
