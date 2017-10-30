@@ -4,7 +4,7 @@ C  Input: A (3x3 matrix)
 C ---------------------------------------------------------------------- 
       function eq(STRESS)
           implicit none
-          REAL eq,STRESS
+          REAL*8 eq,STRESS
           dimension STRESS(6)
           eq=sqrt(STRESS(1)*STRESS(1)
      .      +STRESS(2)*STRESS(2)
@@ -31,8 +31,8 @@ C ----------------------------------------------------------------------
 !-----------------------------------------------------------------------
 !     ABAQUS implicit variable declaration included in VABA_PARAM.INC
 !     states the following:
-!     a to h are real variables
-!     o to z are real variables
+!     a to h are REAL*8 variables
+!     o to z are REAL*8 variables
 !     i to n are integer variables
 !-----------------------------------------------------------------------
       INCLUDE 'VABA_PARAM.INC'
@@ -63,52 +63,52 @@ C
 !     but it is not required due to the VABA_PARAM.INC file
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 !   Material parameters
-      REAL YOUNG       ! Young's modulus 
-      REAL POISS       ! Poisson's ratio
-      REAL C11,C12,C44 ! Elasticity matrix C components
-      REAL SIGMA0      ! Initial yield stress
-      REAL ET          ! Tangent modulus
+      REAL*8 YOUNG       ! Young's modulus 
+      REAL*8 POISS       ! Poisson's ratio
+      REAL*8 C11,C12,C44 ! Elasticity matrix C components
+      REAL*8 SIGMA0      ! Initial yield stress
+      REAL*8 ET          ! Tangent modulus
 !   Internal variables
-      REAL P           ! Equivalent plastic strain
+      REAL*8 P           ! Equivalent plastic strain
 !   Plasticity variables
-      REAL DLAMBDA     ! Plastic multiplier
-      REAL DDLAMBDA    ! Increment in plastic multiplier
+      REAL*8 DLAMBDA     ! Plastic multiplier
+      REAL*8 DDLAMBDA    ! Increment in plastic multiplier
 !   Yield function variables
-      REAL F           ! Yield function
-      REAL PHI         ! Equivalent stress
-      REAL SIGMAY      ! Yield stress
+      REAL*8 F           ! Yield function
+      REAL*8 PHI         ! Equivalent stress
+      REAL*8 SIGMAY      ! Yield stress
 !   Computational variables
-      REAL RESNOR      ! Convergence criterion
-      REAL TOL         ! Tolerance for the RMAP algorithm
+      REAL*8 RESNOR      ! Convergence criterion
+      REAL*8 TOL         ! Tolerance for the RMAP algorithm
       INTEGER MXITER   ! Maximum number of iteration for the RMAP
       INTEGER ITER     ! Number of iteration for the RMAP
 !   Added by newbie
-      REAL SDFDP        ! Gradient of "Yield" criterion
-      REAL P0
-      REAL STRESSK
-      REAL DPDT
+      REAL*8 SDFDP        ! Gradient of "Yield" criterion
+      REAL*8 P0
+      REAL*8 STRESSK
+      REAL*8 DPDT
 
-      REAL DT
+      REAL*8 DT
 
-      REAL P0DOT
-      REAL S
-      REAL SV
-      REAL DSVDP
+      REAL*8 P0DOT
+      REAL*8 S
+      REAL*8 SV
+      REAL*8 DSVDP
       
-      REAL EP
-      REAL DEP
-      REAL tst
+      REAL*8 EP
+      REAL*8 DEP
+      REAL*8 tst
 
       PARAMETER(one=1.0d0,zero=0.0d0)
 
 !-----------------------------------------------------------------------
 !     Coefficients for viscous stress
 !-----------------------------------------------------------------------
-      S = 9.0d5
+      S = 5.0d5
       P0DOT = 0.0001d0
 
 
-      EP = 0.0d0
+      EP = 0.0d0s
       DEP = 0.0d0
 
       tst = 0.0d0
@@ -206,7 +206,7 @@ C
 
 
             DLAMBDA  = 0.00000001d0
-            DLAMBDA = DT*P0DOT*(exp((PHI-SIGMAY)/S)-one)
+!            DLAMBDA = DT*P0DOT*(exp((PHI-SIGMAY)/S)-one)
             print *,'gaga',DLAMBDA
 
             SV = S*log(one+DLAMBDA/(DT*P0DOT))
@@ -226,7 +226,7 @@ C
 !           Compute the derivative of the yield function
 !-----------------------------------------------------------------------
             IF(PHI.eq.0)THEN
-               DENOM = 1.0d0
+               DENOM = one
             ELSE
                DENOM = PHI
             ENDIF        
@@ -265,8 +265,8 @@ c
                         SV = zero
                         DSVDP = zero
                   ENDIF
-
-
+                  print *,'DT', DT
+                  print *,'DLAMBDA', DLAMBDA
                   print *,'DDLAMBDA', DDLAMBDA
                   print *,'PHI', PHI
                   print *,'F', F
@@ -343,7 +343,7 @@ c
 !                 Compute convergence criterion
 !-----------------------------------------------------------------------
                   !RESNOR = ABS((F)/SIGMAY)
-                  RESNOR = ABS(DDLAMBDA*100.0d0)
+                  RESNOR = ABS(DDLAMBDA*1000.0d0)
 
 !-----------------------------------------------------------------------
 !                 Check for convergence
