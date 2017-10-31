@@ -169,30 +169,24 @@ C
             STRESS(6) = STRESSOLD(i,6)+C44*STRAININC(i,6)*2.0d0
 
 
-            STRESSK(1) = STRESSOLD(i,1)+C11*STRAININC(i,1)
-     .                                +C12*STRAININC(i,2)
-     .                                +C12*STRAININC(i,3)
-            STRESSK(2) = STRESSOLD(i,2)+C12*STRAININC(i,1)
-     .                                +C11*STRAININC(i,2)
-     .                                +C12*STRAININC(i,3)
-            STRESSK(3) = STRESSOLD(i,3)+C12*STRAININC(i,1)
-     .                                +C12*STRAININC(i,2)
-     .                                +C11*STRAININC(i,3)
-            STRESSK(4) = STRESSOLD(i,4)+C44*STRAININC(i,4)*2.0d0
-            STRESSK(5) = STRESSOLD(i,5)+C44*STRAININC(i,5)*2.0d0
-            STRESSK(6) = STRESSOLD(i,6)+C44*STRAININC(i,6)*2.0d0     
+            STRESSK(1) = STRESS(1)
+            STRESSK(2) = STRESS(2)
+            STRESSK(3) = STRESS(3)
+            STRESSK(4) = STRESS(4)
+            STRESSK(5) = STRESS(5)
+            STRESSK(6) = STRESS(6)     
 !-----------------------------------------------------------------------
 !           Equivalent stress
 !-----------------------------------------------------------------------
-            PHI       = sqrt(STRESS(1)*STRESS(1)
-     .                      +STRESS(2)*STRESS(2)
-     .                      +STRESS(3)*STRESS(3)
-     .                      -STRESS(1)*STRESS(2)
-     .                      -STRESS(2)*STRESS(3)
-     .                      -STRESS(3)*STRESS(1)
-     .                 +3.0d0*(STRESS(4)*STRESS(4)
-     .                      +STRESS(5)*STRESS(5)
-     .                      +STRESS(6)*STRESS(6)))
+            PHI       = sqrt(STRESSK(1)*STRESSK(1)
+     .                      +STRESSK(2)*STRESSK(2)
+     .                      +STRESSK(3)*STRESSK(3)
+     .                      -STRESSK(1)*STRESSK(2)
+     .                      -STRESSK(2)*STRESSK(3)
+     .                      -STRESSK(3)*STRESSK(1)
+     .                 +3.0d0*(STRESSK(4)*STRESSK(4)
+     .                      +STRESSK(5)*STRESSK(5)
+     .                      +STRESSK(6)*STRESSK(6)))
 !-----------------------------------------------------------------------
 !           Equivalent plastic strain from previous time step
 !-----------------------------------------------------------------------
@@ -228,12 +222,12 @@ C
                   DENOM = PHI
             ENDIF        
             
-            DFDS(1) = (STRESS(1)-0.5d0*(STRESS(2)+STRESS(3)))/DENOM
-            DFDS(2) = (STRESS(2)-0.5d0*(STRESS(3)+STRESS(1)))/DENOM
-            DFDS(3) = (STRESS(3)-0.5d0*(STRESS(1)+STRESS(2)))/DENOM
-            DFDS(4) = 3.0d0*STRESS(4)/DENOM
-            DFDS(5) = 3.0d0*STRESS(5)/DENOM
-            DFDS(6) = 3.0d0*STRESS(6)/DENOM
+            DFDS(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
+            DFDS(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
+            DFDS(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
+            DFDS(4) = 3.0d0*STRESSK(4)/DENOM
+            DFDS(5) = 3.0d0*STRESSK(5)/DENOM
+            DFDS(6) = 3.0d0*STRESSK(6)/DENOM
 !-----------------------------------------------------------------------
 !           Determine viscous back stress
 !-----------------------------------------------------------------------
