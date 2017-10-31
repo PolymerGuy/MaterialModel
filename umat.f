@@ -105,7 +105,7 @@ C
 !-----------------------------------------------------------------------
 !     Coefficients for viscous stress
 !-----------------------------------------------------------------------
-      S = 5.0d6
+      S = 1.0d6
       P0DOT = 0.001d0
 
       PDOT = 0.0d0
@@ -202,43 +202,16 @@ C
 !-----------------------------------------------------------------------
 !           Initialize the plastic multiplier
 !-----------------------------------------------------------------------
+            DLAMBDA  = 0.00000d0
 !-----------------------------------------------------------------------
 !           Update yield stress
 !-----------------------------------------------------------------------
             SIGMAY   = SIGMA0+ET*P
-
-
-            DLAMBDA  = 0.000001d0
-
-
-            SV = S*log(one+DLAMBDA/(DT*P0DOT))
-            DSVDP = S/(DT*P0DOT+DLAMBDA)
-!-----------------------------------------------------------------------
-!           Update yield stress
-!-----------------------------------------------------------------------
-            SIGMAY   = SIGMA0+ET*P
-
 !-----------------------------------------------------------------------
 !           Compute yield function
 !-----------------------------------------------------------------------
-            F        = PHI-SIGMAY!  - SV
-            DFDP     = ET + 3.0d0*C44! -DSVDP
+            F        = PHI-SIGMAY
 
-!-----------------------------------------------------------------------
-!           Compute the derivative of the yield function
-!-----------------------------------------------------------------------
-            IF(PHI.eq.0)THEN
-               DENOM = one
-            ELSE
-               DENOM = PHI
-            ENDIF        
-c
-            DFDS(1) = (STRESS(1)-0.5d0*(STRESS(2)+STRESS(3)))/DENOM
-            DFDS(2) = (STRESS(2)-0.5d0*(STRESS(3)+STRESS(1)))/DENOM
-            DFDS(3) = (STRESS(3)-0.5d0*(STRESS(1)+STRESS(2)))/DENOM
-            DFDS(4) = 3.0d0*STRESS(4)/DENOM
-            DFDS(5) = 3.0d0*STRESS(5)/DENOM
-            DFDS(6) = 3.0d0*STRESS(6)/DENOM
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 !           Check for plasticity
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -246,41 +219,55 @@ c
 !           Plastic flow
 !-----------------------------------------------------------------------
             IF(F.GT.0.0d0)THEN ! Plastic flow
-                  SV = S*log(one+DLAMBDA/(DT*P0DOT))
-                  DSVDP = S/(DT*P0DOT+DLAMBDA)
-                  F        = PHI-SIGMAY - SV
-
-                  DFDP     = ET +3.0d0*C44 +DSVDP
+!-----------------------------------------------------------------------
+!           Compute the derivative of the yield function
+!-----------------------------------------------------------------------
+            IF(PHI.eq.0)THEN
+                  DENOM = one
+            ELSE
+                  DENOM = PHI
+            ENDIF        
+            
+            DFDS(1) = (STRESS(1)-0.5d0*(STRESS(2)+STRESS(3)))/DENOM
+            DFDS(2) = (STRESS(2)-0.5d0*(STRESS(3)+STRESS(1)))/DENOM
+            DFDS(3) = (STRESS(3)-0.5d0*(STRESS(1)+STRESS(2)))/DENOM
+            DFDS(4) = 3.0d0*STRESS(4)/DENOM
+            DFDS(5) = 3.0d0*STRESS(5)/DENOM
+            DFDS(6) = 3.0d0*STRESS(6)/DENOM
+!-----------------------------------------------------------------------
+!           Determine viscous back stress
+!-----------------------------------------------------------------------
+            SV = S*log(one+DLAMBDA/(DT*P0DOT))
+            DSVDP = S/(DT*P0DOT+DLAMBDA)
+!-----------------------------------------------------------------------
+!           Compute augmented yield function
+!-----------------------------------------------------------------------
+            F        = PHI-SIGMAY - SV
+            DFDP     = ET +3.0d0*C44 +DSVDP
 
                DO ITER=1,MXITER
 !-----------------------------------------------------------------------
 !                 Compute increment in plastic multiplier
 !-----------------------------------------------------------------------
                   DDLAMBDA  = F/DFDP
+!-----------------------------------------------------------------------
+!                 Update plastic multiplier and P
+!-----------------------------------------------------------------------
                   DLAMBDA = DLAMBDA+DDLAMBDA
-                  P      = P0 +DLAMBDA
-
+                  P      = P0 + DLAMBDA
 !-----------------------------------------------------------------------
-!                 Update yield stress
+!                 Update viscous back stress
 !-----------------------------------------------------------------------
-
-
-                  PDOT = DLAMBDA/DT
-
-
-                  
-                  
-                  print *,'DT', DT
-                  print *,'DLAMBDA', DLAMBDA
-                  print *,'DDLAMBDA', DDLAMBDA
-                  print *,'PHI', PHI
-                  print *,'F', F
-                  print *,'SV', SV
-                  print *,'DSVDP',DSVDP
-                  print *,'DFDP', DFDP
-
+                  tst = one+DLAMBDA/(DT*P0DOT)                  
+                  IF(tst.GT.zero)THEN
+                        SV = S*log(tst)
+                        DSVDP = (S/(tst))/(DT*P0DOT)
+                  ELSE
+                        SV = S*log(-tst)
+                        DSVDP = -(S/(-tst))/(DT*P0DOT)
+                  ENDIF
 !-----------------------------------------------------------------------
-!                 Update equivalent plastic strain
+!                 Update stress
 !-----------------------------------------------------------------------
 
                   STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
@@ -296,9 +283,13 @@ c
                   STRESSK(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
                   STRESSK(6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
                  
-!
+!-----------------------------------------------------------------------
+!                 Update yield stress
+!-----------------------------------------------------------------------
                   SIGMAY   = SIGMA0+ET*P
-
+!-----------------------------------------------------------------------
+!                 Equivalent stress
+!-----------------------------------------------------------------------
             PHI       = sqrt(STRESSK(1)*STRESSK(1)
      .                      +STRESSK(2)*STRESSK(2)
      .                      +STRESSK(3)*STRESSK(3)
@@ -311,39 +302,13 @@ c
 
 
 !-----------------------------------------------------------------------
-!                 Update viscous stress
+!                 Compute augmented yield function and gradient
 !-----------------------------------------------------------------------
-                  tst = one+DLAMBDA/(DT*P0DOT)
-                  print *, 'tst',tst
-                  
-                  IF(tst.GT.zero)THEN
-                        SV = S*log(tst)
-                        DSVDP = (S/(tst))/(DT*P0DOT)
-                  ELSE
-                        SV = S*log(-tst)
-                        DSVDP = -(S/(-tst))/(DT*P0DOT)
-!                        SV = zero
-!                        DSVDP = zero
-                  ENDIF
-
-
                   F        = PHI-SIGMAY - SV
-
                   DFDP     = ET +3.0d0*C44 +DSVDP
-
-                  print *,'F updated', F
-                  print *,'DFDP updated', DFDP
-                  print *,'SV updated', SV
-                  print *,'Plastic',P
-
-
-
-
-
-
-     
+    
 !-----------------------------------------------------------------------
-!           Compute yield function
+!                 Compute the derivative of the yield function
 !-----------------------------------------------------------------------
 
                   IF(PHI.eq.0)THEN
@@ -352,28 +317,39 @@ c
                      DENOM = PHI
                   ENDIF        
       
-!                 DFDS(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
-!                 DFDS(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
-!                 DFDS(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
-!                 DFDS(4) = 3.0d0*STRESSK(4)/DENOM
-!                 DFDS(5) = 3.0d0*STRESSK(5)/DENOM
-!                 DFDS(6) = 3.0d0*STRESSK(6)/DENOM
+                 DFDS(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
+                 DFDS(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
+                 DFDS(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
+                 DFDS(4) = 3.0d0*STRESSK(4)/DENOM
+                 DFDS(5) = 3.0d0*STRESSK(5)/DENOM
+                 DFDS(6) = 3.0d0*STRESSK(6)/DENOM
 
-
-
+!-----------------------------------------------------------------------
+!                 Plot things
+!-----------------------------------------------------------------------
+                  print *,'DT', DT
+                  print *,'DLAMBDA', DLAMBDA
+                  print *,'DDLAMBDA', DDLAMBDA
+                  print *,'PHI', PHI
+                  print *,'F', F
+                  print *,'SV', SV
+                  print *,'DSVDP',DSVDP
+                  print *,'DFDP', DFDP
+                  print *,'F updated', F
+                  print *,'DFDP updated', DFDP
+                  print *,'SV updated', SV
+                  print *,'Plastic',P
+                  print *, 'tst',tst
+ 
 !-----------------------------------------------------------------------
 !                 Compute convergence criterion
 !-----------------------------------------------------------------------
                   RESNOR = ABS((F)/SIGMAY)
-!                  RESNOR = ABS(DDLAMBDA*1000.0d0)
-
 !-----------------------------------------------------------------------
 !                 Check for convergence
 !-----------------------------------------------------------------------
                   IF(RESNOR.LE.TOL)THEN ! RMAP has converged
-                  PRINT *, 'Converged in', ITER
-                  PRINT *, 'PDOT', PDOT
-                  PRINT *, ' ' 
+                        PRINT *, 'Converged in', ITER
 !-----------------------------------------------------------------------
 !                    Update the stress tensor
 !-----------------------------------------------------------------------
