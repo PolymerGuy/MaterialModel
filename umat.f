@@ -83,7 +83,7 @@ C
       INTEGER MXITER   ! Maximum number of iteration for the RMAP
       INTEGER ITER     ! Number of iteration for the RMAP
 !   Added by newbie
-      REAL*8 SDFDP        ! Gradient of "Yield" criterion
+      REAL*8 DFDP        ! Gradient of "Yield" criterion
       REAL*8 P0
       REAL*8 STRESSK
       REAL*8 DPDT
@@ -91,6 +91,7 @@ C
       REAL*8 DT
 
       REAL*8 P0DOT
+      REAL*8 PDOT
       REAL*8 S
       REAL*8 SV
       REAL*8 DSVDP
@@ -104,11 +105,13 @@ C
 !-----------------------------------------------------------------------
 !     Coefficients for viscous stress
 !-----------------------------------------------------------------------
-      S = 5.0d5
-      P0DOT = 0.0001d0
+      S = 5.0d6
+      P0DOT = 0.001d0
+
+      PDOT = 0.0d0
 
 
-      EP = 0.0d0s
+      EP = 0.0d0
       DEP = 0.0d0
 
       tst = 0.0d0
@@ -205,9 +208,8 @@ C
             SIGMAY   = SIGMA0+ET*P
 
 
-            DLAMBDA  = 0.00000001d0
-!            DLAMBDA = DT*P0DOT*(exp((PHI-SIGMAY)/S)-one)
-            print *,'gaga',DLAMBDA
+            DLAMBDA  = 0.000001d0
+
 
             SV = S*log(one+DLAMBDA/(DT*P0DOT))
             DSVDP = S/(DT*P0DOT+DLAMBDA)
@@ -220,7 +222,7 @@ C
 !           Compute yield function
 !-----------------------------------------------------------------------
             F        = PHI-SIGMAY!  - SV
-            SDFDP     = -ET -3.0d0*C44! -DSVDP
+            DFDP     = ET + 3.0d0*C44! -DSVDP
 
 !-----------------------------------------------------------------------
 !           Compute the derivative of the yield function
@@ -243,28 +245,31 @@ c
 !-----------------------------------------------------------------------
 !           Plastic flow
 !-----------------------------------------------------------------------
-            IF(F.GT.0.0)THEN ! Plastic flow
+            IF(F.GT.0.0d0)THEN ! Plastic flow
+                  SV = S*log(one+DLAMBDA/(DT*P0DOT))
+                  DSVDP = S/(DT*P0DOT+DLAMBDA)
+                  F        = PHI-SIGMAY - SV
+
+                  DFDP     = ET +3.0d0*C44 +DSVDP
+
                DO ITER=1,MXITER
 !-----------------------------------------------------------------------
 !                 Compute increment in plastic multiplier
 !-----------------------------------------------------------------------
-                  DDLAMBDA  = -F/SDFDP
+                  DDLAMBDA  = F/DFDP
+                  DLAMBDA = DLAMBDA+DDLAMBDA
+                  P      = P0 +DLAMBDA
 
 !-----------------------------------------------------------------------
 !                 Update yield stress
 !-----------------------------------------------------------------------
-                  tst = one+DLAMBDA/(DT*P0DOT)
-                  print *, 'tst',tst
-!-----------------------------------------------------------------------
-!                 Update viscous stress
-!-----------------------------------------------------------------------
-                  IF(tst.GE.zero)THEN
-                        SV = S*log(one+DLAMBDA/(DT*P0DOT))
-                        DSVDP = S/(DT*P0DOT+DLAMBDA)
-                  ELSE
-                        SV = zero
-                        DSVDP = zero
-                  ENDIF
+
+
+                  PDOT = DLAMBDA/DT
+
+
+                  
+                  
                   print *,'DT', DT
                   print *,'DLAMBDA', DLAMBDA
                   print *,'DDLAMBDA', DDLAMBDA
@@ -272,12 +277,11 @@ c
                   print *,'F', F
                   print *,'SV', SV
                   print *,'DSVDP',DSVDP
-                  print *,'SDFDP', SDFDP
+                  print *,'DFDP', DFDP
+
 !-----------------------------------------------------------------------
 !                 Update equivalent plastic strain
 !-----------------------------------------------------------------------
-                  DLAMBDA = DLAMBDA+DDLAMBDA
-                  P      = P0 +DLAMBDA
 
                   STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
      .                        +C12*DFDS(2)
@@ -306,15 +310,33 @@ c
      .                      +STRESSK(6)*STRESSK(6)))
 
 
+!-----------------------------------------------------------------------
+!                 Update viscous stress
+!-----------------------------------------------------------------------
+                  tst = one+DLAMBDA/(DT*P0DOT)
+                  print *, 'tst',tst
+                  
+                  IF(tst.GT.zero)THEN
+                        SV = S*log(tst)
+                        DSVDP = (S/(tst))/(DT*P0DOT)
+                  ELSE
+                        SV = S*log(-tst)
+                        DSVDP = -(S/(-tst))/(DT*P0DOT)
+!                        SV = zero
+!                        DSVDP = zero
+                  ENDIF
+
 
                   F        = PHI-SIGMAY - SV
 
-                  SDFDP     = -ET -3.0d0*C44 - DSVDP
+                  DFDP     = ET +3.0d0*C44 +DSVDP
 
                   print *,'F updated', F
-                  print *,'SDFDP updated', SDFDP
+                  print *,'DFDP updated', DFDP
                   print *,'SV updated', SV
                   print *,'Plastic',P
+
+
 
 
 
@@ -330,26 +352,27 @@ c
                      DENOM = PHI
                   ENDIF        
       
-                 DFDS(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
-                 DFDS(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
-                 DFDS(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
-                 DFDS(4) = 3.0d0*STRESSK(4)/DENOM
-                 DFDS(5) = 3.0d0*STRESSK(5)/DENOM
-                 DFDS(6) = 3.0d0*STRESSK(6)/DENOM
+!                 DFDS(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
+!                 DFDS(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
+!                 DFDS(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
+!                 DFDS(4) = 3.0d0*STRESSK(4)/DENOM
+!                 DFDS(5) = 3.0d0*STRESSK(5)/DENOM
+!                 DFDS(6) = 3.0d0*STRESSK(6)/DENOM
 
 
 
 !-----------------------------------------------------------------------
 !                 Compute convergence criterion
 !-----------------------------------------------------------------------
-                  !RESNOR = ABS((F)/SIGMAY)
-                  RESNOR = ABS(DDLAMBDA*1000.0d0)
+                  RESNOR = ABS((F)/SIGMAY)
+!                  RESNOR = ABS(DDLAMBDA*1000.0d0)
 
 !-----------------------------------------------------------------------
 !                 Check for convergence
 !-----------------------------------------------------------------------
                   IF(RESNOR.LE.TOL)THEN ! RMAP has converged
                   PRINT *, 'Converged in', ITER
+                  PRINT *, 'PDOT', PDOT
                   PRINT *, ' ' 
 !-----------------------------------------------------------------------
 !                    Update the stress tensor
