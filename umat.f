@@ -103,10 +103,10 @@ C
       
       REAL*8 tst
 
-      PARAMETER(three=3.0d0,one=1.0d0,zero=0.0d0)
+      PARAMETER(three=3.0d0,two=2.0d0,one=1.0d0,zero=0.0d0)
 
       PHI = 0.0d0
-      ALPHA = 0.1d0
+      ALPHA = 0.45d0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -236,8 +236,8 @@ C
          DFDS_J2(6) = 3.0d0*STRESSK(6)/DENOM
 
             DFDS(1) = (DFDS_J2(1) + ALPHA)/(one+ALPHA)
-            DFDS(2) = (DFDS_J2(2) + ALPHA )/(one+ALPHA)
-            DFDS(3) = (DFDS_J2(3) + ALPHA )/(one+ALPHA)
+            DFDS(2) = (DFDS_J2(2) + ALPHA)/(one+ALPHA)
+            DFDS(3) = (DFDS_J2(3) + ALPHA)/(one+ALPHA)
             DFDS(4) = (DFDS_J2(4))/(one+ALPHA)             
             DFDS(5) = (DFDS_J2(5))/(one+ALPHA)             
             DFDS(6) = (DFDS_J2(6))/(one+ALPHA)
@@ -252,7 +252,9 @@ C
 !           Compute augmented yield function
 !-----------------------------------------------------------------------
             F        = PHI-SIGMAY - SV
-            DFDP     = ET +(3.0d0*C44)/(one+alpha) +DSVDP
+                  DFDP     = ET +(3.0d0*C44+(alpha**two)*
+     .            (three*YOUNG)/(two*(one-two*POISS)) )
+     .            /((one+alpha)**two) +DSVDP
 
                DO ITER=1,MXITER
 !-----------------------------------------------------------------------
@@ -316,8 +318,10 @@ C
 !                 Compute augmented yield function and gradient
 !-----------------------------------------------------------------------
                   F        = PHI-SIGMAY - SV
-                  DFDP     = ET +(3.0d0*C44)/(one+alpha) +DSVDP
-    
+                  DFDP     = ET +(3.0d0*C44+(alpha**two)*
+     .            (three*YOUNG)/(two*(one-two*POISS)) )
+     .            /((one+alpha)**two) +DSVDP
+
 !-----------------------------------------------------------------------
 !                 Compute the derivative of the yield function
 !-----------------------------------------------------------------------
