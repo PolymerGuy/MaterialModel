@@ -106,7 +106,7 @@ C
       PARAMETER(three=3.0d0,two=2.0d0,one=1.0d0,zero=0.0d0)
 
       PHI = 0.0d0
-      ALPHA = 0.45d0
+      ALPHA = 0.48d0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -252,9 +252,7 @@ C
 !           Compute augmented yield function
 !-----------------------------------------------------------------------
             F        = PHI-SIGMAY - SV
-                  DFDP     = ET +(3.0d0*C44+(alpha**two)*
-     .            (three*YOUNG)/(two*(one-two*POISS)) )
-     .            /((one+alpha)**two) +DSVDP
+            DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/((one-two*POISS)))/((one+alpha)**two) +DSVDP
 
                DO ITER=1,MXITER
 !-----------------------------------------------------------------------
@@ -318,9 +316,8 @@ C
 !                 Compute augmented yield function and gradient
 !-----------------------------------------------------------------------
                   F        = PHI-SIGMAY - SV
-                  DFDP     = ET +(3.0d0*C44+(alpha**two)*
-     .            (three*YOUNG)/(two*(one-two*POISS)) )
-     .            /((one+alpha)**two) +DSVDP
+            DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/((one-two*POISS)))/((one+alpha)**two) +DSVDP
+
 
 !-----------------------------------------------------------------------
 !                 Compute the derivative of the yield function
