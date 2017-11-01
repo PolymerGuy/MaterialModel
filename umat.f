@@ -91,30 +91,13 @@ C
       REAL*8 DT
 
       REAL*8 P0DOT
-      REAL*8 PDOT
       REAL*8 S
       REAL*8 SV
       REAL*8 DSVDP
       
-      REAL*8 EP
-      REAL*8 DEP
       REAL*8 tst
 
       PARAMETER(one=1.0d0,zero=0.0d0)
-
-!-----------------------------------------------------------------------
-!     Coefficients for viscous stress
-!-----------------------------------------------------------------------
-      S = 1.0d6
-      P0DOT = 0.001d0
-
-      PDOT = 0.0d0
-
-
-      EP = 0.0d0
-      DEP = 0.0d0
-
-      tst = 0.0d0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -123,8 +106,10 @@ C
       POISS  = PROPS(2)
       SIGMA0 = PROPS(3)
       ET     = PROPS(4)
-      TOL    = PROPS(5)
-      MXITER = PROPS(6)
+      S      = PROPS(5)
+      P0DOT  = PROPS(6)
+      TOL    = PROPS(7)
+      MXITER = PROPS(8)
 !-----------------------------------------------------------------------
 !     Compute elasticity matrix
 !-----------------------------------------------------------------------
@@ -342,7 +327,7 @@ C
 !-----------------------------------------------------------------------
 !                 Check for convergence
 !-----------------------------------------------------------------------
-                  IF(RESNOR.LE.TOL)THEN ! RMAP has converged
+                  IF(RESNOR.LE.TOL.AND.DLAMBDA.GE.zero)THEN ! RMAP has converged
                         PRINT *, 'Converged in', ITER
 !-----------------------------------------------------------------------
 !                    Update the stress tensor
