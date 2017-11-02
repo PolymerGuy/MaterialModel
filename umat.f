@@ -106,7 +106,7 @@ C
       PARAMETER(three=3.0d0,two=2.0d0,one=1.0d0,zero=0.0d0)
 
       PHI = 0.0d0
-      ALPHA = 0.48d0
+      ALPHA = 0.5d0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -252,8 +252,8 @@ C
 !           Compute augmented yield function
 !-----------------------------------------------------------------------
             F        = PHI-SIGMAY - SV
-            DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/((one-two*POISS)))/((one+alpha)**two) +DSVDP
-
+            DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/
+     .            ((one-two*POISS)))/((one+alpha)**two) +DSVDP
                DO ITER=1,MXITER
 !-----------------------------------------------------------------------
 !                 Compute increment in plastic multiplier
@@ -316,7 +316,8 @@ C
 !                 Compute augmented yield function and gradient
 !-----------------------------------------------------------------------
                   F        = PHI-SIGMAY - SV
-            DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/((one-two*POISS)))/((one+alpha)**two) +DSVDP
+                  DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/
+     .            ((one-two*POISS)))/((one+alpha)**two) +DSVDP
 
 
 !-----------------------------------------------------------------------
@@ -379,6 +380,20 @@ C
 !-----------------------------------------------------------------------
                   IF(RESNOR.LE.TOL.AND.DLAMBDA.GE.zero)THEN ! RMAP has converged
                         PRINT *, 'Converged in', ITER
+
+
+                  STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
+     .                        +C12*DFDS(2)
+     .                        +C12*DFDS(3))
+                  STRESSK(2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
+     .                        +C11*DFDS(2)
+     .                        +C12*DFDS(3))
+                  STRESSK(3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
+     .                        +C12*DFDS(2)
+     .                        +C11*DFDS(3))
+                  STRESSK(4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
+                  STRESSK(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
+                  STRESSK(6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
 !-----------------------------------------------------------------------
 !                    Update the stress tensor
 !-----------------------------------------------------------------------
