@@ -57,6 +57,8 @@ C
       DIMENSION DFDS_J2(NDIR+NSHR)   ! Derivative of the yield function
 
       DIMENSION STRESSK(NDIR+NSHR)
+      DIMENSION DSTRESSK(NDIR+NSHR)
+
       DIMENSION EP(NDIR+NSHR)
       DIMENSION DEP(NDIR+NSHR)
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -100,13 +102,15 @@ C
       REAL*8 DSVDP
 
       REAL*8 ALPHA
+
+      REAL*8 CIIKK
       
       REAL*8 tst
 
       PARAMETER(three=3.0d0,two=2.0d0,one=1.0d0,zero=0.0d0)
 
       PHI = 0.0d0
-      ALPHA = 0.5d0
+      ALPHA = 0.2d0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -125,6 +129,7 @@ C
       C11    = YOUNG*(1.0d0-POISS)/((1.0d0+POISS)*(1.0d0-2.0d0*POISS)) !la+2nu
       C12    = POISS*C11/(1.0d0-POISS) !Lame lambda
       C44    = 0.5d0*YOUNG/(1.0d0+POISS) !Lame nu
+      CIIKK = three*YOUNG/(one-two*POISS)
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 !     Loop over integration points
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -222,38 +227,39 @@ C
 !-----------------------------------------------------------------------
 !           Compute the derivative of the yield function
 !-----------------------------------------------------------------------
-            IF(PHI.eq.0)THEN
-                  DENOM = one
-            ELSE
-                  DENOM = PHI
-            ENDIF        
-            
-         DFDS_J2(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
-         DFDS_J2(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
-         DFDS_J2(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
-         DFDS_J2(4) = 3.0d0*STRESSK(4)/DENOM
-         DFDS_J2(5) = 3.0d0*STRESSK(5)/DENOM
-         DFDS_J2(6) = 3.0d0*STRESSK(6)/DENOM
+                  IF(PHI.eq.0)THEN
+                     DENOM = 1.0d0
+                  ELSE
+                     DENOM = PHI
+                  ENDIF        
+      
+            DFDS_J2(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
+            DFDS_J2(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
+            DFDS_J2(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
+                 DFDS_J2(4) = 3.0d0*STRESSK(4)/DENOM
+                 DFDS_J2(5) = 3.0d0*STRESSK(5)/DENOM
+                 DFDS_J2(6) = 3.0d0*STRESSK(6)/DENOM
 
-            DFDS(1) = (DFDS_J2(1) + ALPHA)/(one+ALPHA)
-            DFDS(2) = (DFDS_J2(2) + ALPHA)/(one+ALPHA)
-            DFDS(3) = (DFDS_J2(3) + ALPHA)/(one+ALPHA)
-            DFDS(4) = (DFDS_J2(4))/(one+ALPHA)             
-            DFDS(5) = (DFDS_J2(5))/(one+ALPHA)             
-            DFDS(6) = (DFDS_J2(6))/(one+ALPHA)
+                 DFDS(1) = (DFDS_J2(1)+ALPHA)/(one+ALPHA)
+                 DFDS(2) = (DFDS_J2(2)+ALPHA)/(one+ALPHA)
+                 DFDS(3) = (DFDS_J2(3)+ALPHA)/(one+ALPHA)
+                 DFDS(4) = (DFDS_J2(4))/(one+ALPHA)             
+                 DFDS(5) = (DFDS_J2(5))/(one+ALPHA)             
+                 DFDS(6) = (DFDS_J2(6))/(one+ALPHA)
 
 
 !-----------------------------------------------------------------------
 !           Determine viscous back stress
 !-----------------------------------------------------------------------
-            SV = S*log(one+DLAMBDA/(DT*P0DOT))
-            DSVDP = S/(DT*P0DOT+DLAMBDA)
+            SV = S*log(one+DLAMBDA/(DT*P0DOT))*zero
+            DSVDP = S/(DT*P0DOT+DLAMBDA)*zero
 !-----------------------------------------------------------------------
 !           Compute augmented yield function
 !-----------------------------------------------------------------------
             F        = PHI-SIGMAY - SV
-            DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/
-     .            ((one-two*POISS)))/((one+alpha)**two) +DSVDP
+            DFDP     = ET +(3.0d0*C44+(alpha**two)*CIIKK)/
+     .                  ((one+ALPHA)**two) +DSVDP
+
                DO ITER=1,MXITER
 !-----------------------------------------------------------------------
 !                 Compute increment in plastic multiplier
@@ -269,28 +275,41 @@ C
 !-----------------------------------------------------------------------
                   tst = one+DLAMBDA/(DT*P0DOT)                  
                   IF(tst.GT.zero)THEN
-                        SV = S*log(tst)
-                        DSVDP = (S/(tst))/(DT*P0DOT)
+                        SV = S*log(tst)*zero
+                        DSVDP = (S/(tst))/(DT*P0DOT)*zero
                   ELSE
-                        SV = S*log(-tst)
-                        DSVDP = -(S/(-tst))/(DT*P0DOT)
+                        SV = S*log(-tst)*zero
+                        DSVDP = -(S/(-tst))/(DT*P0DOT)*zero
                   ENDIF
+
+!                 Determine plastic strains
+                  DEP(1)= DLAMBDA*DFDS(1)
+                  DEP(2)= DLAMBDA*DFDS(2)
+                  DEP(3)= DLAMBDA*DFDS(3)
+                  DEP(4)= DLAMBDA*DFDS(4)
+                  DEP(5)= DLAMBDA*DFDS(5)
+                  DEP(6)= DLAMBDA*DFDS(6)
+
 !-----------------------------------------------------------------------
 !                 Update stress
 !-----------------------------------------------------------------------
+            DSTRESSK(1) = C11*DEP(1)+C12*DEP(2)
+     .                    +C12*DEP(3)
+            DSTRESSK(2) = C12*DEP(1)+C11*DEP(2)
+     .                    +C12*DEP(3)
+            DSTRESSK(3) = C12*DEP(1)+C12*DEP(2)
+     .                    +C11*DEP(3)
+            DSTRESSK(4) = C44*DEP(4)
+            DSTRESSK(5) = C44*DEP(5)
+            DSTRESSK(6) = C44*DEP(6)
 
-                  STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
-     .                        +C12*DFDS(2)
-     .                        +C12*DFDS(3))
-                  STRESSK(2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
-     .                        +C11*DFDS(2)
-     .                        +C12*DFDS(3))
-                  STRESSK(3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
-     .                        +C12*DFDS(2)
-     .                        +C11*DFDS(3))
-                  STRESSK(4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
-                  STRESSK(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
-                  STRESSK(6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
+
+                  STRESSK(1)= STRESS(1)-DSTRESSK(1)
+                  STRESSK(2)= STRESS(2)-DSTRESSK(2)
+                  STRESSK(3)= STRESS(3)-DSTRESSK(3)
+                  STRESSK(4)= STRESS(4)-DSTRESSK(4)
+                  STRESSK(5)= STRESS(5)-DSTRESSK(5)
+                  STRESSK(6)= STRESS(6)-DSTRESSK(6)
                  
 !-----------------------------------------------------------------------
 !                 Update yield stress
@@ -316,8 +335,8 @@ C
 !                 Compute augmented yield function and gradient
 !-----------------------------------------------------------------------
                   F        = PHI-SIGMAY - SV
-                  DFDP     = ET +(3.0d0*C44+(alpha**two)*(three*YOUNG)/
-     .            ((one-two*POISS)))/((one+alpha)**two) +DSVDP
+            DFDP     = ET +(3.0d0*C44+(alpha**two)*CIIKK)/
+     .                  ((one+ALPHA)**two) +DSVDP
 
 
 !-----------------------------------------------------------------------
@@ -337,9 +356,9 @@ C
                  DFDS_J2(5) = 3.0d0*STRESSK(5)/DENOM
                  DFDS_J2(6) = 3.0d0*STRESSK(6)/DENOM
 
-                 DFDS(1) = (DFDS_J2(1) + ALPHA)/(one+ALPHA)
-                 DFDS(2) = (DFDS_J2(2) + ALPHA )/(one+ALPHA)
-                 DFDS(3) = (DFDS_J2(3)+ ALPHA )/(one+ALPHA)
+                 DFDS(1) = (DFDS_J2(1)+ALPHA)/(one+ALPHA)
+                 DFDS(2) = (DFDS_J2(2)+ALPHA)/(one+ALPHA)
+                 DFDS(3) = (DFDS_J2(3)+ALPHA)/(one+ALPHA)
                  DFDS(4) = (DFDS_J2(4))/(one+ALPHA)             
                  DFDS(5) = (DFDS_J2(5))/(one+ALPHA)             
                  DFDS(6) = (DFDS_J2(6))/(one+ALPHA)
@@ -361,13 +380,6 @@ C
                   print *,'Plastic',P
                   print *, 'tst',tst
 
-
-                  DEP(1)= DLAMBDA*DFDS(1)
-                  DEP(2)= DLAMBDA*DFDS(2)
-                  DEP(3)= DLAMBDA*DFDS(3)
-                  DEP(4)= DLAMBDA*DFDS(4)
-                  DEP(5)= DLAMBDA*DFDS(5)
-                  DEP(6)= DLAMBDA*DFDS(6) 
  
                   print*,'Volumetric strain',DEP(1)+DEP(2)+DEP(3)
 
@@ -381,19 +393,6 @@ C
                   IF(RESNOR.LE.TOL.AND.DLAMBDA.GE.zero)THEN ! RMAP has converged
                         PRINT *, 'Converged in', ITER
 
-
-                  STRESSK(1)= STRESS(1)-DLAMBDA*(C11*DFDS(1)
-     .                        +C12*DFDS(2)
-     .                        +C12*DFDS(3))
-                  STRESSK(2)= STRESS(2)-DLAMBDA*(C12*DFDS(1)
-     .                        +C11*DFDS(2)
-     .                        +C12*DFDS(3))
-                  STRESSK(3)= STRESS(3)-DLAMBDA*(C12*DFDS(1)
-     .                        +C12*DFDS(2)
-     .                        +C11*DFDS(3))
-                  STRESSK(4)= STRESS(4)-DLAMBDA*C44*DFDS(4)
-                  STRESSK(5)= STRESS(5)-DLAMBDA*C44*DFDS(5)
-                  STRESSK(6)= STRESS(6)-DLAMBDA*C44*DFDS(6)
 !-----------------------------------------------------------------------
 !                    Update the stress tensor
 !-----------------------------------------------------------------------
