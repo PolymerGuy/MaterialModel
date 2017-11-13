@@ -41,7 +41,7 @@ C ----------------------------------------------------------------------
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
       DIMENSION PROPS(NPROPS), DENSITY(NBLOCK), COORDMP(NBLOCK,*),
      . CHARLENGTH(*), STRAININC(NBLOCK,NDIR+NSHR), RELSPININC(*),
-     . TEMPOLD(*), STRETCHOLD(*), DEFGRADOLD(*), FIELDOLD(*),
+     . TEMPOLD(*), STRETCHOLD(*), FIELDOLD(*),
      . STRESSOLD(NBLOCK,NDIR+NSHR), STATEOLD(NBLOCK,NSTATEV),
      . ENERINTERNOLD(NBLOCK),  ENERINELASOLD(NBLOCK), TEMPNEW(*),
      . STRETCHNEW(*), DEFGRADNEW(*), FIELDNEW(*),
@@ -61,6 +61,7 @@ C
 
       DIMENSION EP(NDIR+NSHR)
       DIMENSION DEP(NDIR+NSHR)
+      DIMENSION DEFGRADOLD(nblock,ndir+nshr+nshr)
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 !     Internal UMAT variables could be declared as follow
 !     but it is not required due to the VABA_PARAM.INC file
@@ -107,10 +108,15 @@ C
       
       REAL*8 tst
 
+      REAL*8 det
+      
+      REAL*8 presssign
+
       PARAMETER(three=3.0d0,two=2.0d0,one=1.0d0,zero=0.0d0)
 
       PHI = 0.0d0
-      ALPHA = 0.2d0
+      ALPHA = 0.5d0
+      presssign = 1.0d0
 
 !-----------------------------------------------------------------------
 !     Read parameters from ABAQUS material card
@@ -118,7 +124,7 @@ C
       YOUNG  = PROPS(1)
       POISS  = PROPS(2)
       SIGMA0 = PROPS(3)
-      ET     = PROPS(4)
+      ET     = PROPS(4)*zero
       S      = PROPS(5)*0.0d0
       P0DOT  = PROPS(6)
       TOL    = PROPS(7)
@@ -134,6 +140,19 @@ C
 !     Loop over integration points
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
       DO i=1,NBLOCK
+
+            det = defgradOld(i,1)*defgradOld(i,2)*defgradOld(i,3)
+     .        - defgradOld(i,4)*defgradOld(i,7)*defgradOld(i,3)
+     .        - defgradOld(i,1)*defgradOld(i,5)*defgradOld(i,8)
+     .        + defgradOld(i,9)*defgradOld(i,7)*defgradOld(i,8)
+     .        + defgradOld(i,4)*defgradOld(i,5)*defgradOld(i,6)
+     .        - defgradOld(i,9)*defgradOld(i,2)*defgradOld(i,6)
+
+
+            print *,'det',det
+
+
+
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 !        If time = 0 then pure elastic computation
 !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -230,15 +249,19 @@ C
                   IF(PHI.eq.0)THEN
                      DENOM = 1.0d0
                   ELSE
-                     DENOM = PHI
-                  ENDIF        
+                     DENOM = PHI_J2
+                  ENDIF
+            presssign = PHI_I1/abs(PHI_I1)        
       
-            DFDS_J2(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
-            DFDS_J2(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
-            DFDS_J2(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
-                 DFDS_J2(4) = 3.0d0*STRESSK(4)/DENOM
-                 DFDS_J2(5) = 3.0d0*STRESSK(5)/DENOM
-                 DFDS_J2(6) = 3.0d0*STRESSK(6)/DENOM
+            DFDS_J2(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))
+     .      /DENOM
+            DFDS_J2(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))
+     .      /DENOM
+            DFDS_J2(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))
+     .      /DENOM
+                 DFDS_J2(4) = 3.0d0*STRESSK(4)/(two*DENOM) ! Think this should be divided by two
+                 DFDS_J2(5) = 3.0d0*STRESSK(5)/(two*DENOM)
+                 DFDS_J2(6) = 3.0d0*STRESSK(6)/(two*DENOM)
 
                  DFDS(1) = (DFDS_J2(1)+ALPHA)/(one+ALPHA)
                  DFDS(2) = (DFDS_J2(2)+ALPHA)/(one+ALPHA)
@@ -299,9 +322,9 @@ C
      .                    +C12*DEP(3)
             DSTRESSK(3) = C12*DEP(1)+C12*DEP(2)
      .                    +C11*DEP(3)
-            DSTRESSK(4) = C44*DEP(4)
-            DSTRESSK(5) = C44*DEP(5)
-            DSTRESSK(6) = C44*DEP(6)
+            DSTRESSK(4) = C44*two*DEP(4)
+            DSTRESSK(5) = C44*two*DEP(5)
+            DSTRESSK(6) = C44*two*DEP(6)
 
 
                   STRESSK(1)= STRESS(1)-DSTRESSK(1)
@@ -328,14 +351,14 @@ C
      .                      +STRESSK(5)*STRESSK(5)
      .                      +STRESSK(6)*STRESSK(6)))
 
-            PHI_I1 = (STRESSK(1)+STRESSK(2)+STRESSK(3))
+            PHI_I1 = STRESSK(1)+STRESSK(2)+STRESSK(3)
 
             PHI = (PHI_J2 + ALPHA*PHI_I1)/(one+ALPHA)
 !-----------------------------------------------------------------------
 !                 Compute augmented yield function and gradient
 !-----------------------------------------------------------------------
                   F        = PHI-SIGMAY - SV
-            DFDP     = ET +(3.0d0*C44+(alpha**two)*CIIKK)/
+                  DFDP     = ET +(3.0d0*C44+(alpha**two)*CIIKK)/
      .                  ((one+ALPHA)**two) +DSVDP
 
 
@@ -346,15 +369,19 @@ C
                   IF(PHI.eq.0)THEN
                      DENOM = 1.0d0
                   ELSE
-                     DENOM = PHI
-                  ENDIF        
+                     DENOM = PHI_J2
+                  ENDIF
+            presssign = PHI_I1/abs(PHI_I1)        
       
-            DFDS_J2(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))/DENOM
-            DFDS_J2(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))/DENOM
-            DFDS_J2(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))/DENOM
-                 DFDS_J2(4) = 3.0d0*STRESSK(4)/DENOM
-                 DFDS_J2(5) = 3.0d0*STRESSK(5)/DENOM
-                 DFDS_J2(6) = 3.0d0*STRESSK(6)/DENOM
+            DFDS_J2(1) = (STRESSK(1)-0.5d0*(STRESSK(2)+STRESSK(3)))
+     .      /DENOM
+            DFDS_J2(2) = (STRESSK(2)-0.5d0*(STRESSK(3)+STRESSK(1)))
+     .      /DENOM
+            DFDS_J2(3) = (STRESSK(3)-0.5d0*(STRESSK(1)+STRESSK(2)))
+     .      /DENOM
+                 DFDS_J2(4) = 3.0d0*STRESSK(4)/(two*DENOM)
+                 DFDS_J2(5) = 3.0d0*STRESSK(5)/(two*DENOM)
+                 DFDS_J2(6) = 3.0d0*STRESSK(6)/(two*DENOM)
 
                  DFDS(1) = (DFDS_J2(1)+ALPHA)/(one+ALPHA)
                  DFDS(2) = (DFDS_J2(2)+ALPHA)/(one+ALPHA)
@@ -379,6 +406,9 @@ C
                   print *,'SV updated', SV
                   print *,'Plastic',P
                   print *, 'tst',tst
+                  print *, 'defgrad',DEFGRADOLD(i,1)
+                  print *,'DFDS', DFDS(1)
+                  print*, 'Stressk', STRESS(1)
 
  
                   print*,'Volumetric strain',DEP(1)+DEP(2)+DEP(3)
