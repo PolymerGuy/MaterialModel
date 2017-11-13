@@ -124,7 +124,7 @@ C
       YOUNG  = PROPS(1)
       POISS  = PROPS(2)
       SIGMA0 = PROPS(3)
-      ET     = PROPS(4)*zero
+      ET     = PROPS(4)!*zero
       S      = PROPS(5)*0.0d0
       P0DOT  = PROPS(6)
       TOL    = PROPS(7)
@@ -274,8 +274,8 @@ C
 !-----------------------------------------------------------------------
 !           Determine viscous back stress
 !-----------------------------------------------------------------------
-            SV = S*log(one+DLAMBDA/(DT*P0DOT))*zero
-            DSVDP = S/(DT*P0DOT+DLAMBDA)*zero
+            SV = S*log(one+DLAMBDA/(DT*P0DOT))
+            DSVDP = S/(DT*P0DOT+DLAMBDA)
 !-----------------------------------------------------------------------
 !           Compute augmented yield function
 !-----------------------------------------------------------------------
@@ -298,11 +298,11 @@ C
 !-----------------------------------------------------------------------
                   tst = one+DLAMBDA/(DT*P0DOT)                  
                   IF(tst.GT.zero)THEN
-                        SV = S*log(tst)*zero
-                        DSVDP = (S/(tst))/(DT*P0DOT)*zero
+                        SV = S*log(tst)
+                        DSVDP = (S/(tst))/(DT*P0DOT)
                   ELSE
-                        SV = S*log(-tst)*zero
-                        DSVDP = -(S/(-tst))/(DT*P0DOT)*zero
+                        SV = S*log(-tst)
+                        DSVDP = -(S/(-tst))/(DT*P0DOT)
                   ENDIF
 
 !                 Determine plastic strains
